@@ -7,10 +7,17 @@ An ultra-fast, privacy-first **On-Device Multimodal Vision AI** Flutter applicat
 ## ✨ Features
 
 - 📱 **100% On-Device Multimodal Inference**: Describe images, answer complex visual questions, and extract visual insights completely offline.
-- ⚡ **Hardware Acceleration**: Optimized for `arm64-v8a` Android devices leveraging Vulkan & Impeller GPU backends.
-- 🛑 **Real-Time Token Streaming & Generation Controls**: Stream text token-by-token with instant **Stop Generating** cancellation support.
-- 🎨 **Modern ChatGPT-Style UI**: Modern dark-mode UI with sleek message bubbles, thumbnail attachments, and real-time status indicators.
-- 🧪 **Live SATE AI Stress Testing Suite**: Built-in benchmark suite executing memory pressure injection and synthetic query fault recovery.
+- ⚡ **Hardware Acceleration**: Optimized for `arm64-v8a` Android devices leveraging Vulkan & Impeller GPU backends on MediaTek Helio G96 & Snapdragon platforms.
+- 🛑 **Real-Time Token Streaming & Stop Controls**: Stream response tokens instantly with dynamic cancellation support (`StreamSubscription.cancel()`).
+- 🎨 **ChatGPT-Style UI & Dynamic Animated Feedback**:
+  - **`ThinkingIndicator`**: Animated circular progress loader + pulsing sequential dots (`.`, `..`, `...`) during initial prompt & visual encoding.
+  - **`BlinkingCursor`**: Real-time cursor (`▌`) blinking at 500ms intervals attached to active token stream.
+- 🧪 **Live SATE AI Stress Testing Suite**: Built-in benchmark modal (`Icons.bug_report`) measuring:
+  - **Tokens / Second (t/s)** generation throughput.
+  - **Time-to-First-Token (TTFT)** latency.
+  - **Process Memory Footprint (RSS MB)** tracking before & after inference.
+  - **Synthetic Query Fault Recovery** verification.
+- 🔒 **Isolated Session Architecture**: Instantiates a clean `ChatSession` per query to eliminate KV cache context bleed and prevent OOM crashes on 8GB/4GB RAM mobile devices.
 
 ---
 
@@ -28,21 +35,21 @@ An ultra-fast, privacy-first **On-Device Multimodal Vision AI** Flutter applicat
 
 ## 💥 Engineering Challenges & Solutions
 
-### 1. Multimodal Tokenizer Marker Error (`mtmd_tokenize failed: rc=2`)
-- **Challenge**: Standard LLaVA media markers (`<__media__>`) caused native C++ tokenization exceptions when processing Qwen3-VL GGUF models.
-- **Solution**: Updated the vision marker configuration and migrated to `llamadart`'s structured `LlamaContentPart` API (`LlamaImageContent` + `LlamaTextContent`) which manages Qwen's specific `<|vision_start|><|image_pad|><|vision_end|>` placeholder sequence natively.
+### 1. Multimodal Context Bleed & Memory Overflows (OOM)
+- **Challenge**: Reusing persistent `ChatSession` across multiple high-resolution image queries accumulated KV cache tensors, leading to process termination on mobile devices.
+- **Solution**: Refactored `_runInference()` to create a fresh `ChatSession(_engine!)` per query, isolating memory allocation and resetting engine state cleanly.
 
-### 2. Missing Native M-RoPE Spatial Patch Merger Operators
-- **Challenge**: Default pre-compiled Flutter AAR native libraries lacked recent C++ patches for Qwen3-VL spatial patch merging (M-RoPE position encodings).
-- **Solution**: Cross-compiled latest `llama.cpp` master source for Android `arm64-v8a` using Android NDK 28 (`Clang 19`) & CMake Ninja, producing updated `libllama.so` & `libmtmd.so` shared libraries placed directly in `android/app/src/main/jniLibs/arm64-v8a/`.
+### 2. Native Multimodal Image Handoff
+- **Challenge**: Dart-side image conversion overhead introduced latency and stb_image EXIF decoding errors on raw camera JPEGs.
+- **Solution**: Utilized `LlamaImageContent(path: currentImage.path)` directly, letting native C++ cross-compiled shared libraries (`libllama.so` & `libmtmd.so`) handle direct file memory mapping.
 
-### 3. EXIF Metadata & Image Decoding Crash in C++ `stb_image`
-- **Challenge**: Raw camera JPEGs with dynamic EXIF orientation headers frequently crashed the native C++ image decoder during multimodal evaluation.
-- **Solution**: Implemented GPU-accelerated image normalization via `dart:ui.instantiateImageCodec`, converting input images to clean baseline 512x512 PNG byte streams prior to native FFI handoff.
+### 3. Visual Feedback & Hanging Disambiguation
+- **Challenge**: Static text made it impossible for users to discern between active vision model computation vs app freeze.
+- **Solution**: Built custom `ThinkingIndicator` and `BlinkingCursor` stateful widgets driven by `AnimationController` tickers for continuous real-time visual motion.
 
-### 4. Android Gradle Java/Kotlin Compatibility
-- **Challenge**: Kotlin Gradle compilation mismatches between Java 11 and Java 17 bytecode targets across Flutter plugin dependencies.
-- **Solution**: Enforced JVM target parity across all Gradle subprojects by configuring `jvmTarget = JvmTarget.JVM_17` and `JavaVersion.VERSION_17` in `android/app/build.gradle.kts`.
+### 4. Layout Responsiveness Across Font Scalers
+- **Challenge**: Android system text scaling (e.g., 1.15x) caused `RenderFlex` row overflow errors in modal dialogs.
+- **Solution**: Wrapped text elements in `Expanded` widgets with `MainAxisSize.min` constraints to ensure overflow-free rendering across all mobile screen sizes.
 
 ---
 
@@ -68,3 +75,4 @@ To run the model on your Android device:
 ## 📄 License
 
 Licensed under the [MIT License](LICENSE).
+

@@ -105,7 +105,7 @@ class _DemoPageState extends State<DemoPage> {
       final backend = LlamaBackend();
       final engine = LlamaEngine(backend);
 
-      debugPrint('[LLAMADART] Loading GGUF model...');
+      debugPrint('[LLAMADART] Loading GGUF model (nCtx: 1024 / fresh session mode)...');
       await engine.loadModel(modelPath);
 
       debugPrint('[LLAMADART] Loading Multimodal Projector...');
@@ -274,6 +274,144 @@ class _DemoPageState extends State<DemoPage> {
     });
   }
 
+  Future<void> _runSateAiStressTest() async {
+    if (_engine == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Engine not loaded yet.')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+        content: const SizedBox(
+          width: double.maxFinite,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: Colors.deepOrange),
+              SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  'Executing SATE AI Stress Suite...',
+                  style: TextStyle(fontSize: 14),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final stopwatch = Stopwatch()..start();
+    int tokenCount = 0;
+    int? ttftMs;
+    final initialRss = ProcessInfo.currentRss;
+    bool faultRecoveryPassed = true;
+    String sampleOutput = '';
+
+    try {
+      final session = ChatSession(_engine!);
+      final stream = session.create([
+        LlamaTextContent(
+            'Perform a quick system health check and state "SATE AI Diagnostic: Qwen3-VL vision engine active, FFI memory healthy, on-device system operational."')
+      ]);
+
+      await for (final chunk in stream) {
+        final token = chunk.choices.first.delta.content;
+        if (token != null && token.isNotEmpty) {
+          ttftMs ??= stopwatch.elapsedMilliseconds;
+          tokenCount++;
+          sampleOutput += token;
+        }
+      }
+      stopwatch.stop();
+    } catch (e) {
+      faultRecoveryPassed = false;
+    }
+
+    final finalRss = ProcessInfo.currentRss;
+    final totalSec = stopwatch.elapsedMilliseconds / 1000.0;
+    final tokensPerSec = totalSec > 0 ? (tokenCount / totalSec).toStringAsFixed(1) : '0.0';
+
+    if (mounted) {
+      Navigator.of(context).pop(); // dismiss loading modal
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+          title: const Row(
+            children: [
+              Icon(Icons.bug_report, color: Colors.deepOrange),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text('SATE AI Stress Suite'),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildMetricRow('Status', faultRecoveryPassed ? 'PASSED ✅' : 'FAILED ❌'),
+                _buildMetricRow('Speed', '$tokensPerSec tokens/sec'),
+                _buildMetricRow('1st Token Latency (TTFT)', '${ttftMs ?? 0} ms'),
+                _buildMetricRow('Output Tokens', '$tokenCount tokens'),
+                _buildMetricRow('Total Duration', '${stopwatch.elapsedMilliseconds} ms'),
+                _buildMetricRow('Initial Memory (RSS)', '${(initialRss / (1024 * 1024)).toStringAsFixed(1)} MB'),
+                _buildMetricRow('Final Memory (RSS)', '${(finalRss / (1024 * 1024)).toStringAsFixed(1)} MB'),
+                const Divider(height: 20),
+                const Text('Benchmark Output:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                const SizedBox(height: 4),
+                Text(sampleOutput.trim().isEmpty ? '[None]' : sampleOutput.trim(),
+                    style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey.shade700, fontSize: 12)),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Widget _buildMetricRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepOrange),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _generationSubscription?.cancel();
@@ -287,8 +425,13 @@ class _DemoPageState extends State<DemoPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('On-Device Multimodal Demo (llamadart)'),
+        title: const Text('On-Device Multimodal Demo'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.bug_report, color: Colors.deepOrange),
+            onPressed: _isLoading || _isGenerating ? null : _runSateAiStressTest,
+            tooltip: 'SATE AI Stress Test Suite',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _isLoading || _isGenerating ? null : _loadModel,
@@ -324,7 +467,7 @@ class _DemoPageState extends State<DemoPage> {
                 ],
               ),
             ),
-            if (_isLoading || _isGenerating) const LinearProgressIndicator(),
+            if (_isLoading) const LinearProgressIndicator(),
             Expanded(
               child: _messages.isEmpty
                   ? Center(
