@@ -53,6 +53,23 @@ An ultra-fast, privacy-first **On-Device Multimodal Vision AI** Flutter applicat
 
 ---
 
+## 🔮 Future Work & Performance Optimization Roadmap
+
+Targeted performance and stability optimizations for low-spec / CPU-bound hardware (e.g. MediaTek Helio G96):
+
+- 🎯 **Quantization Level Tuning (`Q4_0` / `Q3_K`)**: `[NOT WORKED ON]`
+  - *Current Status*: App runs `Qwen3VL-2B-Instruct-Q4_K_M.gguf`. Future iterations can evaluate dropping backbone quantization to `Q4_0` or `Q3_K` for lower memory footprint and higher throughput.
+- 🎯 **Context Size Bounding (`n_ctx`)**: `[NOT WORKED ON]`
+  - *Current Status*: Uses default `llamadart` context initialization. Future work includes setting explicit `ContextParams` bounds tailored strictly for single-turn visual queries.
+- 🎯 **Thread Count Optimization (`n_threads`)**: `[NOT WORKED ON]`
+  - *Current Status*: `n_threads` currently defaults to all logical cores (8 threads), causing core contention across big (2x Cortex-A76) and little (6x Cortex-A55) cores. Pinning `n_threads` to 4–6 big cores will prevent little-core slowdowns.
+- 🎯 **Pre-Inference Image Downscaling**: `[NOT WORKED ON]`
+  - *Current Status*: Raw camera JPEGs are passed directly via `LlamaImageContent`. Adding Dart/Flutter-side pre-resizing/downscaling before passing images to the native vision tower will eliminate a major bottleneck.
+- 🎯 **Logcat / System LMK Analysis (`lowmemorykiller` / `lmkd`)**: `[PARTIALLY WORKED ON]`
+  - *Current Status*: Isolated per-query `ChatSession` instances and Dart RSS memory monitoring are implemented. Deeper kernel-level `logcat` analysis for `lmkd` / `OutOfMemoryError` events remains for future system profiling.
+
+---
+
 ## 📂 Model Setup Guide
 
 To run the model on your Android device:
