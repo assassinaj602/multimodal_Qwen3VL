@@ -324,7 +324,7 @@ class _DemoPageState extends State<DemoPage> {
                 ],
               ),
             ),
-            if (_isLoading) const LinearProgressIndicator(),
+            if (_isLoading || _isGenerating) const LinearProgressIndicator(),
             Expanded(
               child: _messages.isEmpty
                   ? Center(
@@ -348,6 +348,8 @@ class _DemoPageState extends State<DemoPage> {
                       itemBuilder: (context, index) {
                         final msg = _messages[index];
                         final isUser = msg.sender == MessageSender.user;
+                        final isCurrentlyGeneratingThisMsg =
+                            _isGenerating && index == _messages.length - 1;
 
                         return Align(
                           alignment: isUser
@@ -389,21 +391,29 @@ class _DemoPageState extends State<DemoPage> {
                                   ),
                                   const SizedBox(height: 8),
                                 ],
-                                Text(
-                                  msg.text.isEmpty &&
-                                          _isGenerating &&
-                                          index == _messages.length - 1
-                                      ? 'Thinking...'
-                                      : msg.text,
-                                  style: TextStyle(
-                                    color: isUser
-                                        ? Colors.white
-                                        : msg.isError
-                                            ? Colors.red.shade900
-                                            : Colors.black87,
-                                    fontSize: 15,
+                                if (msg.text.isEmpty && isCurrentlyGeneratingThisMsg)
+                                  const ThinkingIndicator()
+                                else
+                                  RichText(
+                                    text: TextSpan(
+                                      style: TextStyle(
+                                        color: isUser
+                                            ? Colors.white
+                                            : msg.isError
+                                                ? Colors.red.shade900
+                                                : Colors.black87,
+                                        fontSize: 15,
+                                      ),
+                                      children: [
+                                        TextSpan(text: msg.text),
+                                        if (isCurrentlyGeneratingThisMsg)
+                                          const WidgetSpan(
+                                            alignment: PlaceholderAlignment.middle,
+                                            child: BlinkingCursor(),
+                                          ),
+                                      ],
+                                    ),
                                   ),
-                                ),
                               ],
                             ),
                           ),
@@ -506,3 +516,126 @@ class _DemoPageState extends State<DemoPage> {
     );
   }
 }
+
+class ThinkingIndicator extends StatefulWidget {
+  const ThinkingIndicator({super.key});
+
+  @override
+  State<ThinkingIndicator> createState() => _ThinkingIndicatorState();
+}
+
+class _ThinkingIndicatorState extends State<ThinkingIndicator>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: Colors.deepOrange,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'Thinking',
+              style: TextStyle(
+                color: Colors.grey.shade800,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Row(
+              children: List.generate(3, (i) {
+                final double opacity =
+                    ((_controller.value * 3 - i) % 3).clamp(0.15, 1.0);
+                return Opacity(
+                  opacity: opacity,
+                  child: Text(
+                    '.',
+                    style: TextStyle(
+                      color: Colors.deepOrange.shade800,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class BlinkingCursor extends StatefulWidget {
+  const BlinkingCursor({super.key});
+
+  @override
+  State<BlinkingCursor> createState() => _BlinkingCursorState();
+}
+
+class _BlinkingCursorState extends State<BlinkingCursor>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _controller.value,
+          child: Text(
+            ' ▌',
+            style: TextStyle(
+              color: Colors.deepOrange.shade700,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
