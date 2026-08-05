@@ -4,6 +4,14 @@ An ultra-fast, privacy-first **On-Device Multimodal Vision AI** Flutter applicat
 
 ---
 
+## 📸 App Demos & Benchmarks
+
+| 🐕 Simple Query Demo (Dog with Blurred BG) | 💻 Complex Query Demo (Girl Working on Laptop) | 🧪 SATE AI Stress Suite Modal |
+| :---: | :---: | :---: |
+| <img src="assets/simple.gif" height="420" alt="Simple Image Query Demo" /> | <img src="assets/complex.gif" height="420" alt="Complex Image Query Demo" /> | <img src="assets/Sate_ai.jpg" height="420" alt="SATE AI Stress Suite Screenshot" /> |
+
+---
+
 ## ✨ Features
 
 - 📱 **100% On-Device Multimodal Inference**: Describe images, answer complex visual questions, and extract visual insights completely offline.
