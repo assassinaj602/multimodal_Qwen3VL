@@ -54,7 +54,6 @@ class DemoPage extends StatefulWidget {
 
 class _DemoPageState extends State<DemoPage> {
   LlamaEngine? _engine;
-  ChatSession? _session;
   File? _pickedImage;
   final TextEditingController _promptController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -112,11 +111,8 @@ class _DemoPageState extends State<DemoPage> {
       debugPrint('[LLAMADART] Loading Multimodal Projector...');
       await engine.loadMultimodalProjector(mmprojPath);
 
-      final session = ChatSession(engine);
-
       setState(() {
         _engine = engine;
-        _session = session;
         _status = 'Qwen3-VL Loaded Successfully with llamadart (Vision: ACTIVE)';
         _isLoading = false;
       });
@@ -164,7 +160,7 @@ class _DemoPageState extends State<DemoPage> {
   Future<void> _runInference() async {
     final promptText = _promptController.text.trim();
 
-    if (_engine == null || _session == null) {
+    if (_engine == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('llamadart engine is not loaded yet.')),
       );
@@ -179,6 +175,11 @@ class _DemoPageState extends State<DemoPage> {
     }
 
     final currentImage = _pickedImage;
+
+    // Log memory consumption before inference
+    try {
+      debugPrint('[LLAMADART MEMORY] ProcessInfo RSS before inference: ${ProcessInfo.currentRss}');
+    } catch (_) {}
 
     setState(() {
       _isGenerating = true;
@@ -213,8 +214,10 @@ class _DemoPageState extends State<DemoPage> {
 
       contents.add(LlamaTextContent(promptText));
 
+      // Create a fresh ChatSession for this inference to prevent KV cache / context bleed
+      final freshSession = ChatSession(_engine!);
       debugPrint('[LLAMADART INFERENCE] Streaming session creation...');
-      final stream = _session!.create(contents);
+      final stream = freshSession.create(contents);
 
       _generationSubscription = stream.listen(
         (chunk) {
